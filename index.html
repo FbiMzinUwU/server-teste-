@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>WebKit Primitive Testbed</title>
+</head>
+<body>
+    <h1>WebKit JSC Primitives Testbed</h1>
+    <p>Abra o console do desenvolvedor (F12) para ver os resultados das conversões de 64 bits e primitivas.</p>
+
+    <script>
+        // 1. Classe Int64 para simular aritmética de 64 bits em ambientes JS legados/JSC
+        class Int64 {
+            constructor(v) {
+                if (v instanceof Int64) {
+                    this.bytes = v.bytes.slice(0);
+                } else if (typeof v === 'number') {
+                    this.bytes = new Uint8Array(8);
+                    let view = new DataView(this.bytes.buffer);
+                    view.setFloat64(0, v, true); // Little endian
+                } else if (v instanceof Uint8Array) {
+                    this.bytes = v;
+                } else {
+                    this.bytes = new Uint8Array(8);
+                }
+            }
+
+            toNumber() {
+                let view = new DataView(this.bytes.buffer);
+                return view.getFloat64(0, true);
+            }
+
+            toString() {
+                let view = new DataView(this.bytes.buffer);
+                let high = view.getUint32(4, true).toString(16).padStart(8, '0');
+                let low = view.getUint32(0, true).toString(16).padStart(8, '0');
+                return "0x" + high + low;
+            }
+        }
+
+        // 2. Buffers de conversão física (Double <-> Uint64 / Ponteiros)
+        const f64_buf = new Float64Array(1);
+        const u64_buf = new Uint32Array(f64_buf.buffer);
+
+        function numToDouble(number) {
+            f64_buf[0] = number;
+            return f64_buf[0];
+        }
+
+        function doubleToBigInt(d) {
+            f64_buf[0] = d;
+            return ((BigInt(u64_buf[1])) << 32n) | BigInt(u64_buf[0]);
+        }
+
+        function bigIntToDouble(bi) {
+            u64_buf[0] = Number(bi & 0xFFFFFFFFn);
+            u64_buf[1] = Number(bi >> 32n);
+            return f64_buf[0];
+        }
+
+        // 3. Estrutura básica de Type Confusion (Exemplo conceitual com Arrays do JSC)
+        // No motor JSC, estruturar arrays adjacentes (Ex: Butterfly corruption) 
+        // costuma seguir este arranjo lógico:
+        function setupTypeConfusion() {
+            // Array de floats para ler/escrever dados brutos
+            let floatArray = [1.1, 2.2, 3.3, 4.4];
+            
+            // Array de objetos para mapear ponteiros reais na heap
+            let objArray = [{a: 1}, {b: 2}];
+
+            console.log("[*] Arrays alocados na heap do JSC.");
+            console.log("[*] FloatArray:", floatArray);
+            console.log("[*] ObjArray:", objArray);
+
+            // Simulação de conversão de ponteiro para número
+            let dummyObject = { target: 0x1337 };
+            
+            // Em um exploit real, aqui entraria a rotina para corromper o 'Butterfly' 
+            // ou o tamanho do array para alcançar o objeto vizinho.
+            return { floatArray, objArray, dummyObject };
+        }
+
+        // Executando testes básicos no console
+        window.onload = function() {
+            console.log("--- Testando Rotinas de Conversão ---");
+            let testInt = new Int64(42.5);
+            console.log("Int64 representation of 42.5:", testInt.toString());
+
+            let bi = 0x4142434445464748n;
+            let convertedDouble = bigIntToDouble(bi);
+            console.log("BigInt convertido para Double:", convertedDouble);
+            console.log("Double convertido de volta para BigInt:", doubleToBigInt(convertedDouble).toString(16));
+
+            setupTypeConfusion();
+        };
+    </script>
+</body>
+</html>
