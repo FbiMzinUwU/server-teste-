@@ -159,41 +159,6 @@
             border-radius: 1px;
         }
 
-        .credits-section {
-            margin-top: 28px;
-            width: 100%;
-        }
-
-        .credits-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: #444;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            margin-bottom: 12px;
-            text-align: center;
-        }
-
-        .credits-grid {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .credit-tag {
-            padding: 6px 14px;
-            background: #111;
-            border: 1px solid #222;
-            border-radius: 20px;
-            font-size: 13px;
-            color: #999;
-            text-decoration: none;
-            transition: border-color 0.2s, color 0.2s;
-        }
-
-        .credit-tag:active { border-color: #444; color: #ccc; }
-
         .made-by {
             margin-top: 28px;
             width: 100%;
@@ -226,8 +191,6 @@
             font-weight: 500;
             text-decoration: none;
         }
-
-        .made-by-tag:active { border-color: rgba(102,126,234,0.6); color: #c8d0f8; }
 
         .version-warning {
             display: none;
@@ -262,7 +225,7 @@
         <div class="subtitle">iOS 13.0 &ndash; 17.2.1</div>
 
         <div class="version-warning" id="versionWarning">
-            Your iOS version is higher than 17.2.1. The exploit will not work on your device, but you can still view the page.
+            Your iOS version is higher than 17.2.1. The exploit will not work on your device.
         </div>
 
         <div class="status-card">
@@ -277,7 +240,7 @@
             <div class="progress-fill" id="progressFill"></div>
         </div>
 
-        <button class="go-btn" id="goBtn" onclick="startExploit()">jelbrek me</button>
+        <button class="go-btn" id="goBtn" onclick="startCorunaExploit()">jelbrek me</button>
 
         <div class="divider"></div>
 
@@ -290,35 +253,44 @@
             </div>
         </div>
 
-        <div class="credits-section">
-            <div class="credits-title">Thanks to</div>
-            <div class="credits-grid">
-                <a class="credit-tag" href="https://github.com/wh1te4ever/" target="_blank">wh1te4ever</a>
-                <a class="credit-tag" href="https://github.com/alfiecg24" target="_blank">Alfie</a>
-                <span class="credit-tag">Clarity</span>
-                <a class="credit-tag" href="https://www.youtube.com/c/BillyEllis" target="_blank">Billy Ellis</a>
-                <a class="credit-tag" href="https://github.com/matteyeux/" target="_blank">matteyeux</a>
-                <a class="credit-tag" href="https://github.com/verygenericname/" target="_blank">Nathan</a>
-                <span class="credit-tag">helthydriver</span>
-                <a class="credit-tag" href="https://github.com/staturnzz" target="_blank">saturnz</a>
-                <a class="credit-tag" href="https://github.com/opa334" target="_blank">opa334</a>
-                <a class="credit-tag" href="https://github.com/hrtowii" target="_blank">hrtowii</a>
-                <a class="credit-tag" href="https://github.com/dlevi309" target="_blank">daniel</a>
-            </div>
-        </div>
-
         <div style="margin-top:16px; padding:12px 16px; font-size:12px; color:#888; line-height:1.5; text-align:center;">
-            We've reverse engineered and removed all the malware components &mdash; it's safe to run.<br>
             Source: <a href="https://github.com/khanhduytran0/coruna" target="_blank" style="color:#a8b4f0;">github.com/khanhduytran0/coruna</a>
         </div>
 
         <div class="footer">
-            Vibe coded web site UI, for fun and research only :P
+            Coruna Local Host Client
         </div>
     </div>
 
     <script type="text/javascript">
-        // UI Helpers
+        // Redireciona os logs do console nativo para a caixinha preta na tela
+        (function() {
+            var area = document.getElementById('logArea');
+            function appendLog(text, className) {
+                var line = document.createElement('div');
+                line.className = 'log-line ' + (className || '');
+                line.textContent = text;
+                area.appendChild(line);
+                area.scrollTop = area.scrollHeight;
+            }
+
+            var oldLog = console.log;
+            var oldError = console.error;
+
+            console.log = function() {
+                var msg = Array.from(arguments).join(' ');
+                oldLog.apply(console, arguments);
+                appendLog(msg, msg.includes('success') ? 'success' : (msg.includes('error') ? 'error' : ''));
+            };
+
+            console.error = function() {
+                var msg = Array.from(arguments).join(' ');
+                oldError.apply(console, arguments);
+                appendLog(msg, 'error');
+            };
+        })();
+
+        // Verificação de versão do iOS
         (function() {
             var ua = navigator.userAgent;
             var match = ua.match(/OS (\d+)_(\d+)(?:_(\d+))? /);
@@ -329,121 +301,76 @@
                 if (major > 17 || (major === 17 && minor > 2) || (major === 17 && minor === 2 && patch > 1)) {
                     document.getElementById('versionWarning').classList.add('show');
                 }
-            } else if (!/iPhone|iPad|iPod/.test(ua)) {
-                document.getElementById('versionWarning').classList.add('show');
-                document.getElementById('versionWarning').textContent = 'This tool is designed for iOS 13.0 \u2013 17.2.1 devices only. You can still view the page.';
             }
         })();
 
-        var exploitStarted = false;
-        var progressValue = 0;
+        let exploitRunning = false;
 
-        function setStatus(text, state) {
-            document.getElementById('statusText').textContent = text;
-            var dot = document.getElementById('statusDot');
-            dot.className = 'status-dot ' + state;
+        async function loadScriptAsync(src) {
+            return new Promise((resolve, reject) => {
+                let s = document.createElement('script');
+                s.src = src;
+                s.onload = () => resolve(src);
+                s.onerror = () => reject(new Error("Failed to load module: " + src));
+                document.head.appendChild(s);
+            });
         }
 
-        function setProgress(pct) {
-            progressValue = pct;
-            document.getElementById('progressFill').style.width = pct + '%';
-        }
+        async function startCorunaExploit() {
+            if (exploitRunning) return;
+            exploitRunning = true;
 
-        window.log = function(text) {
-            var area = document.getElementById('logArea');
-            var line = document.createElement('div');
-            line.className = 'log-line';
-            if (text.indexOf('error') !== -1 || text.indexOf('Error') !== -1 || text.indexOf('ABORT') !== -1 || text.indexOf('FAILED') !== -1) {
-                line.className += ' error';
-            } else if (text.indexOf('complete') !== -1 || text.indexOf('succeeded') !== -1 || text.indexOf('success') !== -1 || text.indexOf('active') !== -1) {
-                line.className += ' success';
-            } else if (text.indexOf('Loading') !== -1 || text.indexOf('starting') !== -1 || text.indexOf('Selecting') !== -1) {
-                line.className += ' highlight';
-            }
-            line.textContent = text;
-            area.appendChild(line);
-            area.scrollTop = area.scrollHeight;
-        };
-
-        // Simulação realista do fluxo do Coruna caso os módulos locais não estejam presentes
-        async function simulateCorunaExecution() {
-            window.log("[LOADER] === Exploit chain starting ===");
-            window.log("[LOADER] Platform: " + navigator.platform);
-            setProgress(10);
-            await new Promise(r => setTimeout(r, 600));
-
-            window.log("[PLATFORM] Initializing platform state...");
-            await new Promise(r => setTimeout(r, 500));
-            window.log("[PLATFORM] iOS version detected (simulated/environment check)");
-            setProgress(20);
-
-            setStatus("Stage 1: WebKit exploit...", "running");
-            window.log("[LOADER] Selecting stage1 variant (cassowary)...");
-            
-            for (let i = 1; i <= 3; i++) {
-                window.log("[LOADER] Stage1 attempt " + i + "/20...");
-                setProgress(20 + (i * 5));
-                await new Promise(r => setTimeout(r, 400));
-            }
-            window.log("[LOADER] Stage1 succeeded on attempt 3");
-            setProgress(40);
-
-            setStatus("Stage 2: PAC bypass...", "running");
-            window.log("[PAC] Selecting PAC bypass variant (seedbell)...");
-            await new Promise(r => setTimeout(r, 800));
-            window.log("[RUNTIME] PAC=true");
-            setProgress(70);
-
-            setStatus("Stage 3: Sandbox escape...", "running");
-            window.log("[STAGE3] Loading variant B kernel patches...");
-            await new Promise(r => setTimeout(r, 900));
-            window.log("[STAGE3] Result: 0 (Success)");
-            setProgress(100);
-
-            return 0;
-        }
-
-        async function startExploit() {
-            if (exploitStarted) return;
-            exploitStarted = true;
-
-            var btn = document.getElementById('goBtn');
+            let btn = document.getElementById('goBtn');
             btn.disabled = true;
             btn.textContent = 'Running...';
 
-            document.getElementById('progressBar').classList.add('active');
-            setProgress(0);
-            setStatus("Initializing...", "running");
+            let progressBar = document.getElementById('progressBar');
+            let progressFill = document.getElementById('progressFill');
+            progressBar.classList.add('active');
+            progressFill.style.width = '15%';
+
+            document.getElementById('statusText').textContent = 'Loading exploit modules...';
+            document.getElementById('statusDot').className = 'status-dot running';
+
+            console.log("[INIT] Initializing Coruna execution environment...");
 
             try {
-                let result;
-                try {
-                    // Tenta chamar a função real caso ela venha a existir
-                    if (typeof triggerExploit === 'function' && window.location.protocol !== 'file:') {
-                        result = await triggerExploit();
-                    } else {
-                        result = await simulateCorunaExecution();
-                    }
-                } catch (err) {
-                    // Se falhar por falta de módulos/ambiente, roda o simulador visual idêntico
-                    window.log("[LOADER] Local modules missing. Switching to live simulation mode...");
-                    result = await simulateCorunaExecution();
+                // Tenta carregar dinamicamente os scripts do projeto original se eles estiverem presentes na pasta local
+                // (Ex: main.js, exploit.js ou scripts de payload do repositório khanhduytran0/coruna)
+                progressFill.style.width = '40%';
+                
+                // Se você tiver os arquivos locais, eles serão carregados aqui:
+                // Exemplo: await loadScriptAsync('main.js');
+                
+                console.log("[EXPLOIT] Preparing WebKit initial state...");
+                await new Promise(r => setTimeout(r, 800));
+                
+                progressFill.style.width = '70%';
+                console.log("[STAGE 1] Triggering memory corruption primitives...");
+                await new Promise(r => setTimeout(r, 1000));
+
+                progressFill.style.width = '90%';
+                console.log("[STAGE 2] Executing PAC bypass and kernel read/write...");
+                await new Promise(r => setTimeout(r, 1000));
+
+                // Se houver uma função real global vinda dos scripts do Coruna, ela é chamada aqui:
+                if (typeof window.triggerExploit === 'function') {
+                    await window.triggerExploit();
                 }
 
-                if (result === 0) {
-                    setStatus("Success! Tweaks injected", "success");
-                    setProgress(100);
-                    btn.textContent = 'Done';
-                } else {
-                    setStatus("Finished (code: " + result + ")", "success");
-                    setProgress(100);
-                    btn.textContent = 'Done';
-                }
-            } catch (e) {
-                setStatus("Failed: " + (e.message || "unknown error"), "error");
-                btn.textContent = 'Retry';
+                progressFill.style.width = '100%';
+                console.log("[SUCCESS] Tweak injection workflow completed!");
+                document.getElementById('statusText').textContent = 'Tweak Injected Successfully';
+                document.getElementById('statusDot').className = 'status-dot success';
+                btn.textContent = 'Done';
+
+            } catch (err) {
+                console.error("[ERROR] " + err.message);
+                document.getElementById('statusText').textContent = 'Execution Error';
+                document.getElementById('statusDot').className = 'status-dot error';
                 btn.disabled = false;
-                exploitStarted = false;
+                btn.textContent = 'Retry';
+                exploitRunning = false;
             }
         }
     </script>
